@@ -4,21 +4,17 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'sentiment-ai'
-        REGISTRY   = 'ghcr.io/yaoibrahim'    // ⚠️ Remplacez VOTRE_PSEUDO par votre pseudo GitHub
-        
-        // IMAGE_TAG = SHA Git court du commit (ex: a3f8c12)
-        // Chaque build produit une image taguée de façon unique et traçable
+        REGISTRY   = 'ghcr.io/yaoibrahim' // Ton pseudo est parfait ici !
         IMAGE_TAG  = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
 
     stages {
-        stages {
         // 2.2 Stage 1 - Checkout
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Branche : ${env:BRANCH_NAME}"
-                echo "Commit : ${env:GIT_COMMIT}"
+                echo "Branche : ${env.BRANCH_NAME}"
+                echo "Commit : ${env.GIT_COMMIT}"
                 sh 'git log --oneline -5'
             }
         }
@@ -35,21 +31,8 @@ pipeline {
                 '''
             }
         }
-    }
-    }
 
-    post {
-        always {
-            // Nettoyer les conteneurs de test, qu'il y ait succès ou échec
-            sh 'docker compose down -v 2>/dev/null || true'
-        }
-        success {
-            echo "Pipeline réussi ! Image : ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-        }
-        failure {
-            echo 'Pipeline échoué. Consultez les logs ci-dessus.'
-        }
-    }// 2.4 Stage 3 - Build & Test
+        // 2.4 Stage 3 - Build & Test
         stage('Build & Test') {
             steps {
                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
@@ -80,8 +63,7 @@ pipeline {
                     passwordVariable: 'REGISTRY_PASS'
                 )]) {
                     sh """
-                        echo \$REGISTRY_PASS | docker login ghcr.io \
-                            -u \$REGISTRY_USER --password-stdin
+                        echo \$REGISTRY_PASS | docker login ghcr.io -u \$REGISTRY_USER --password-stdin
                         docker push \${REGISTRY}/\${IMAGE_NAME}:\${IMAGE_TAG}
                         docker tag \${IMAGE_NAME}:\${IMAGE_TAG} \${REGISTRY}/\${IMAGE_NAME}:latest
                         docker push \${REGISTRY}/\${IMAGE_NAME}:latest
@@ -89,4 +71,18 @@ pipeline {
                 }
             }
         }
+    }
+
+    post {
+        always {
+            // Nettoyer les conteneurs de test, qu'il y ait succès ou échec
+            sh 'docker compose down -v 2>/dev/null || true'
+        }
+        success {
+            echo "Pipeline réussi ! Image : ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+        failure {
+            echo 'Pipeline échoué. Consultez les logs ci-dessus.'
+        }
+    }
 }
