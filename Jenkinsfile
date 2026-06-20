@@ -49,5 +49,44 @@ pipeline {
         failure {
             echo 'Pipeline échoué. Consultez les logs ci-dessus.'
         }
-    }
+    }// 2.4 Stage 3 - Build & Test
+        stage('Build & Test') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh """
+                    docker run --rm \
+                        ${IMAGE_NAME}:${IMAGE_TAG} \
+                        pytest tests/ -v \
+                        --cov=src \
+                        --cov-report=xml:coverage.xml \
+                        --cov-report=term-missing \
+                        --cov-fail-under=70
+                """
+            }
+            post {
+                failure {
+                    echo 'Tests échoués ou coverage insuffisant (< 70%)'
+                }
+            }
+        }
+
+        // 2.5 Stage 4 - Push (conditionnel)
+        stage('Push') {
+            when { branch 'main' }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-token',
+                    usernameVariable: 'REGISTRY_USER',
+                    passwordVariable: 'REGISTRY_PASS'
+                )]) {
+                    sh """
+                        echo \$REGISTRY_PASS | docker login ghcr.io \
+                            -u \$REGISTRY_USER --password-stdin
+                        docker push \${REGISTRY}/\${IMAGE_NAME}:\${IMAGE_TAG}
+                        docker tag \${IMAGE_NAME}:\${IMAGE_TAG} \${REGISTRY}/\${IMAGE_NAME}:latest
+                        docker push \${REGISTRY}/\${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
 }
